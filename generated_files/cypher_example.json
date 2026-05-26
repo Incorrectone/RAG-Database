@@ -1,0 +1,162 @@
+[
+  {
+    "question": "What is the risk score of the person with ID 'P-1002'?",
+    "cypher": "MATCH (p:Person {personId: 'P-1002'}) RETURN p.riskScore"
+  },
+  {
+    "question": "List all active companies in the database.",
+    "cypher": "MATCH (c:Company {kycStatus: 'ACTIVE'}) RETURN c.companyId, c.name, c.riskScore"
+  },
+  {
+    "question": "What is the current balance and currency of account 'ACC-5544'?",
+    "cypher": "MATCH (a:Account {accountId: 'ACC-5544'}) RETURN a.balance, a.currency, a.status"
+  },
+  {
+    "question": "Which accounts does Jane Smith own?",
+    "cypher": "MATCH (p:Person {firstName: 'Jane', lastName: 'Smith'})-[r:OWNS_ACCOUNT]->(a:Account) RETURN a.accountId, a.accountType, a.balance, r.since"
+  },
+  {
+    "question": "Find all transactions exceeding a base currency amount of 100,000.",
+    "cypher": "MATCH (t:Transaction) WHERE t.baseCurrencyAmount > 100000.0 RETURN t.txId, t.baseCurrencyAmount, t.timestamp, t.txType"
+  },
+  {
+    "question": "Who works for 'Global Tech Ltd' and what are their job titles?",
+    "cypher": "MATCH (p:Person)-[w:WORKS_FOR]->(c:Company {name: 'Global Tech Ltd'}) RETURN p.firstName, p.lastName, w.jobTitle, w.employmentType"
+  },
+  {
+    "question": "List all devices used by people with a 'REJECTED' KYC status.",
+    "cypher": "MATCH (p:Person {kycStatus: 'REJECTED'})-[u:USES_DEVICE]->(d:Device) RETURN p.firstName, p.lastName, d.deviceType, d.ipAddress, u.firstSeen"
+  },
+  {
+    "question": "Which companies match a sanctions watchlist with a similarity score higher than 90%?",
+    "cypher": "MATCH (c:Company)-[m:MATCHES_WATCHLIST]->(w:WatchlistEntity {listType: 'SANCTIONS'}) WHERE m.similarityScore > 0.90 RETURN c.name, w.listName, m.similarityScore"
+  },
+  {
+    "question": "Who provided forged documents to the system?",
+    "cypher": "MATCH (n)-[r:PROVIDED_DOC]->(d:Document {isForged: true}) RETURN labels(n)[0] AS EntityType, coalesce(n.firstName + ' ' + n.lastName, n.name) AS EntityName, d.docType, r.submissionDate"
+  },
+  {
+    "question": "How is the person 'John Doe' connected to 'Fast Fix Auto' within 4 hops?",
+    "cypher": "MATCH p = shortestPath((per:Person {firstName: 'John', lastName: 'Doe'})-[*1..4]-(c:Company {name: 'Fast Fix Auto'})) RETURN p LIMIT 1"
+  },
+  {
+    "question": "Are there any normal customers sharing a device with a politically exposed person (PEP)?",
+    "cypher": "MATCH (p1:Person {pepStatus: false})-[:USES_DEVICE]->(d:Device)<-[:USES_DEVICE]-(p2:Person {pepStatus: true}) RETURN p1.firstName, p1.lastName, d.ipAddress, p2.firstName, p2.lastName"
+  },
+  {
+    "question": "Find transactions initiated from a country that differs from the account owner's current residential address country.",
+    "cypher": "MATCH (p:Person)-[:HAS_ADDRESS {isCurrent: true}]->(addr:Address), (p)-[:OWNS_ACCOUNT]->(a:Account)-[:SENT_TX]->(t:Transaction)-[:INITIATED_VIA]->(d:Device) WHERE addr.country <> d.registeredCountry RETURN p.firstName, p.lastName, addr.country AS HomeCountry, d.registeredCountry AS DeviceCountry, t.txId, t.amount"
+  },
+  {
+    "question": "Find instances where multiple different companies share the exact same physical address and have the same director.",
+    "cypher": "MATCH (p:Person)-[:DIRECTS]->(c1:Company)-[:HAS_ADDRESS]->(a:Address)<-[:HAS_ADDRESS]-(c2:Company)<-[:DIRECTS]-(p) WHERE id(c1) < id(c2) RETURN p.firstName, p.lastName, c1.name, c2.name, a.street, a.city"
+  },
+  {
+    "question": "Identify potential circular money flows where money moves through 3 intermediate accounts and back to the original sender.",
+    "cypher": "MATCH path = (a1:Account)-[:SENT_TX]->(:Transaction)-[:RECEIVED_TX]->(a2:Account)-[:SENT_TX]->(:Transaction)-[:RECEIVED_TX]->(a3:Account)-[:SENT_TX]->(:Transaction)-[:RECEIVED_TX]->(a1:Account) RETURN path LIMIT 20"
+  },
+  {
+    "question": "Find all Ultimate Beneficial Owners (UBO) who indirectly own more than 25% of 'Shell Corp' through up to 3 levels of intermediate company ownership.",
+    "cypher": "MATCH path = (p:Person)-[:OWNS_EQUITY*1..3]->(c:Company {name: 'Shell Corp'}) WITH p, path, REDUCE(s = 1.0, r IN relationships(path) | s * (r.percentage / 100.0)) AS totalOwnership WHERE totalOwnership > 0.25 RETURN p.firstName, p.lastName, totalOwnership, path"
+  },
+  {
+    "question": "Show me the smurfing ring involving accounts with a risk score over 80",
+    "cypher": "MATCH (p:Person)-[:OWNS_ACCOUNT]->(sender:Account)-[:SENT_TX]->(t:Transaction)-[:RECEIVED_TX]->(receiver:Account) WHERE p.riskScore > 80 AND t.amount >= 9500 AND t.amount < 10000 WITH p, sender, receiver, COUNT(t) AS num_tx, SUM(t.amount) AS total_amount WHERE num_tx >= 3 RETURN p.firstName, p.lastName, sender.accountId, receiver.accountId, num_tx, total_amount"
+  },
+  {
+    "question": "Find layering typologies where an account received smurfed funds and immediately wired them to a holding company.",
+    "cypher": "MATCH (sender:Account)-[:SENT_TX]->(t1:Transaction)-[:RECEIVED_TX]->(aggregator:Account)-[:SENT_TX]->(t2:Transaction {txType: 'Wire'})-[:RECEIVED_TX]->(holding:Account) WHERE t1.amount >= 9500 AND t1.amount < 10000 AND t1.timestamp < t2.timestamp RETURN aggregator.accountId, holding.accountId, t2.amount, t2.timestamp"
+  },
+  {
+    "question": "Find transactions initiated via devices connected to offshore or VPN locations by users with a high risk score.",
+    "cypher": "MATCH (p:Person)-[:OWNS_ACCOUNT]->(:Account)-[:SENT_TX]->(t:Transaction)-[:INITIATED_VIA]->(d:Device) WHERE p.riskScore > 75 AND d.locationData CONTAINS 'Offshore/VPN' RETURN p.personId, t.txId, t.amount, d.locationData"
+  },
+  {
+    "question": "Are there any ghost employees working across multiple companies as contractors?",
+    "cypher": "MATCH (p:Person)-[w1:WORKS_FOR {employmentType: 'Contractor'}]->(c1:Company), (p)-[w2:WORKS_FOR {employmentType: 'Contractor'}]->(c2:Company) WHERE id(c1) < id(c2) RETURN p.firstName, p.lastName, c1.name, c2.name"
+  },
+  {
+    "question": "Find Ultimate Beneficial Owner (UBO) evasion where 4 relatives own exactly 24.9% of a company each.",
+    "cypher": "MATCH (p:Person)-[e:OWNS_EQUITY {percentage: 24.9}]->(c:Company) WITH c, COUNT(p) as owners WHERE owners = 4 RETURN c.name, owners"
+  },
+  {
+    "question": "Find any circular money flows where funds are sent through at least two intermediary accounts before returning to the original sender's account.",
+    "cypher": "MATCH (a1:Account)-[:SENT_TX]->(t1:Transaction)-[:RECEIVED_TX]->(a2:Account)-[:SENT_TX]->(t2:Transaction)-[:RECEIVED_TX]->(a3:Account)-[:SENT_TX]->(t3:Transaction)-[:RECEIVED_TX]->(a1:Account) WHERE a1.accountId <> a2.accountId AND a2.accountId <> a3.accountId AND t1.timestamp < t2.timestamp AND t2.timestamp < t3.timestamp RETURN a1.accountId, a2.accountId, a3.accountId, t1.amount, t2.amount, t3.amount"
+  },
+  {
+    "question": "Identify potential professional nominees: individuals who act as a Director for 3 or more companies but have a risk score over 90.",
+    "cypher": "MATCH (p:Person)-[d:DIRECTS]->(c:Company) WHERE p.riskScore > 90 WITH p, COUNT(c) AS directed_companies WHERE directed_companies >= 3 RETURN p.firstName, p.lastName, p.riskScore, directed_companies"
+  },
+  {
+    "question": "Show me instances where the exact same device was used to submit forged documents by multiple different people.",
+    "cypher": "MATCH (p1:Person)-[:PROVIDED_DOC]->(doc1:Document {isForged: true}), (p1)-[:USES_DEVICE]->(d:Device)<-[:USES_DEVICE]-(p2:Person), (p2)-[:PROVIDED_DOC]->(doc2:Document {isForged: true}) WHERE p1.personId < p2.personId RETURN d.deviceId, d.ipAddress, p1.firstName, p2.firstName, doc1.docType, doc2.docType"
+  },
+  {
+    "question": "Find corporate shell layering where a high-risk company is owned by a holding company, which is in turn owned by a person with a pending KYC status.",
+    "cypher": "MATCH (p:Person {kycStatus: 'Pending'})-[e1:OWNS_EQUITY]->(c1:Company)-[e2:OWNS_EQUITY]->(c2:Company) WHERE c2.riskScore > 75 RETURN p.firstName, p.lastName, c1.name AS holding_company, e1.percentage AS holding_stake, c2.name AS shell_company, e2.percentage AS shell_stake"
+  },
+  {
+    "question": "Find transactions over $5000 sent by individuals who live in the USA but initiated the transaction from a device registered in a foreign country.",
+    "cypher": "MATCH (p:Person)-[:HAS_ADDRESS {addressType: 'Residential'}]->(a:Address {country: 'USA'}), (p)-[:OWNS_ACCOUNT]->(acc:Account)-[:SENT_TX]->(t:Transaction), (t)-[:INITIATED_VIA]->(d:Device) WHERE t.amount > 5000 AND d.registeredCountry <> 'USA' RETURN p.firstName, p.lastName, t.amount, d.registeredCountry, d.ipAddress"
+  },
+  {
+    "question": "Find pass-through accounts: Accounts that received a transaction and subsequently sent out a transaction of almost the exact same amount (between 95% and 100% of the received amount).",
+    "cypher": "MATCH (sender:Account)-[:SENT_TX]->(t_in:Transaction)-[:RECEIVED_TX]->(pass_through:Account)-[:SENT_TX]->(t_out:Transaction)-[:RECEIVED_TX]->(receiver:Account) WHERE t_in.timestamp < t_out.timestamp AND t_out.amount >= (t_in.amount * 0.95) AND t_out.amount <= t_in.amount RETURN pass_through.accountId, t_in.amount, t_out.amount, t_in.timestamp, t_out.timestamp"
+  },
+  {
+    "question": "Find a money mule network where a central account receives funds from at least 5 different individuals, and then forwards a massive wire transfer to a single corporate account with a high risk score.",
+    "cypher": "MATCH (sender:Person)-[:OWNS_ACCOUNT]->(source_acc:Account)-[:SENT_TX]->(t_in:Transaction)-[:RECEIVED_TX]->(mule:Account)-[:SENT_TX]->(t_out:Transaction {txType: 'Wire'})-[:RECEIVED_TX]->(dest_acc:Account)<-[:OWNS_ACCOUNT]-(c:Company) WHERE t_in.timestamp < t_out.timestamp AND c.riskScore > 80 WITH mule, dest_acc, c, t_out, COUNT(DISTINCT sender) AS unique_senders WHERE unique_senders >= 5 RETURN mule.accountId, dest_acc.accountId, c.name, unique_senders, t_out.amount"
+  },
+  {
+    "question": "Show me any transaction initiated from a device that has historically been used by a person on a fraud watchlist, but the transaction was sent by someone who is NOT on the watchlist.",
+    "cypher": "MATCH (bad_actor:Person)-[:MATCHES_WATCHLIST]->(:WatchlistEntity), (bad_actor)-[:USES_DEVICE]->(d:Device)<-[:INITIATED_VIA]-(t:Transaction)<-[:SENT_TX]-(sender_acc:Account)<-[:OWNS_ACCOUNT]-(regular_person:Person) WHERE bad_actor.personId <> regular_person.personId AND NOT EXISTS { MATCH (regular_person)-[:MATCHES_WATCHLIST]->(:WatchlistEntity) } RETURN regular_person.firstName, regular_person.lastName, t.amount, d.deviceId, bad_actor.firstName AS flagged_device_owner"
+  },
+  {
+    "question": "Identify conflict of interest layering: Find instances where Person A is a director of Company X, Company X owns equity in Company Y, and Person B is a director of Company Y, BUT Person A and Person B secretly share the exact same residential address.",
+    "cypher": "MATCH (p1:Person)-[:DIRECTS]->(c1:Company)-[:OWNS_EQUITY]->(c2:Company)<-[:DIRECTS]-(p2:Person), (p1)-[:HAS_ADDRESS {addressType: 'Residential'}]->(a:Address)<-[:HAS_ADDRESS {addressType: 'Residential'}]-(p2:Person) WHERE p1.personId <> p2.personId RETURN p1.lastName AS director_1, c1.name AS parent_co, c2.name AS sub_co, p2.lastName AS director_2, a.street"
+  },
+  {
+    "question": "Find nested corporate ownership (UBO hiding) where a Person owns equity in a Company, and that Company owns equity in a second Company, and the mathematical product of their stakes effectively gives the Person more than 25% indirect ownership of the second Company.",
+    "cypher": "MATCH (p:Person)-[e1:OWNS_EQUITY]->(c1:Company)-[e2:OWNS_EQUITY]->(c2:Company) WHERE (e1.percentage / 100.0) * (e2.percentage / 100.0) > 0.25 RETURN p.firstName, p.lastName, c2.name AS ultimate_company, (e1.percentage / 100.0) * (e2.percentage / 100.0) * 100 AS indirect_stake_percentage"
+  },
+  {
+    "question": "Find 'Bust-Out' fraud behavior: A person who works for a high-risk company, lives in a high-risk country, and suddenly sent out a transaction that completely drained their account (leaving a post-transaction balance of less than $10).",
+    "cypher": "MATCH (c:Company)<-[:WORKS_FOR]-(p:Person)-[:HAS_ADDRESS]->(a:Address), (p)-[:OWNS_ACCOUNT]->(acc:Account)-[s:SENT_TX]->(t:Transaction) WHERE c.riskScore > 80 AND a.country IN ['North Korea', 'Iran', 'Syria', 'Russia'] AND s.postTxBalance < 10.0 AND t.amount > 1000 RETURN p.firstName, p.lastName, acc.accountId, t.amount, s.postTxBalance, a.country"
+  },
+  {
+    "question": "How much money is held in accounts owned by people living in a specific city or state like New York?",
+    "cypher": "MATCH (p:Person)-[:HAS_ADDRESS]->(a:Address), (p)-[:OWNS_ACCOUNT]->(acc:Account) WHERE toLower(a.city) CONTAINS 'new york' OR toLower(a.state) CONTAINS 'new york' OR a.state = 'NY' RETURN SUM(acc.balance) AS total_balance, COUNT(acc) AS number_of_accounts"
+  },
+  {
+    "question": "How much money is held in accounts owned by people living in a specific city or state like New York?",
+    "cypher": "MATCH (p:Person)-[:HAS_ADDRESS]->(a:Address), (p)-[:OWNS_ACCOUNT]->(acc:Account) WHERE toLower(a.city) CONTAINS 'new york' OR toLower(a.state) CONTAINS 'new york' OR a.state = 'NY' RETURN SUM(acc.balance) AS total_balance, COUNT(acc) AS number_of_accounts"
+  },
+  {
+    "question": "Find cases of 'Impossible Travel', where a person initiates a transaction from one country, and shortly after, initiates another transaction from a completely different country.",
+    "cypher": "MATCH (p:Person)-[:OWNS_ACCOUNT]->(:Account)-[:SENT_TX]->(t1:Transaction)-[:INITIATED_VIA]->(d1:Device), (p)-[:OWNS_ACCOUNT]->(:Account)-[:SENT_TX]->(t2:Transaction)-[:INITIATED_VIA]->(d2:Device) WHERE d1.registeredCountry <> d2.registeredCountry AND t1.timestamp < t2.timestamp RETURN p.firstName, p.lastName, d1.registeredCountry AS first_country, d2.registeredCountry AS second_country, t1.timestamp AS time_1, t2.timestamp AS time_2"
+  },
+  {
+    "question": "Identify self-dealing or conflict of interest where a person directs a company that sends money directly to a completely different company where that same person holds equity.",
+    "cypher": "MATCH (p:Person)-[:DIRECTS]->(sending_co:Company)-[:OWNS_ACCOUNT]->(:Account)-[:SENT_TX]->(t:Transaction)-[:RECEIVED_TX]->(:Account)<-[:OWNS_ACCOUNT]-(receiving_co:Company)<-[:OWNS_EQUITY]-(p) WHERE sending_co.companyId <> receiving_co.companyId RETURN p.firstName, p.lastName, sending_co.name AS sender, receiving_co.name AS receiver, t.amount"
+  },
+  {
+    "question": "Find synthetic identity farms: instances where the exact same IP address or Device was used to access the accounts of 3 or more completely different people.",
+    "cypher": "MATCH (p:Person)-[:OWNS_ACCOUNT]->(:Account)-[:SENT_TX]->(:Transaction)-[:INITIATED_VIA]->(d:Device) WITH d.ipAddress AS shared_ip, COUNT(DISTINCT p) AS unique_people WHERE unique_people >= 3 RETURN shared_ip, unique_people"
+  },
+  {
+    "question": "Identify 'Phantom Companies' indicating a mass-incorporation scheme: Find a person who is the director of 3 or more companies that were all incorporated on the exact same date.",
+    "cypher": "MATCH (p:Person)-[:DIRECTS]->(c:Company) WITH p, c.incorporationDate AS inc_date, COUNT(c) AS num_companies WHERE num_companies >= 3 RETURN p.firstName, p.lastName, inc_date, num_companies"
+  },
+  {
+    "question": "Guilt by association (Shared Physical Address): Find people who are completely clean (no watchlist hits), but share a residential address with someone who is currently on a high-risk watchlist.",
+    "cypher": "MATCH (clean_person:Person)-[:HAS_ADDRESS]->(a:Address)<-[:HAS_ADDRESS]-(flagged_person:Person)-[:MATCHES_WATCHLIST]->(w:WatchlistEntity) WHERE clean_person.personId <> flagged_person.personId AND NOT EXISTS { MATCH (clean_person)-[:MATCHES_WATCHLIST]->(:WatchlistEntity) } RETURN clean_person.firstName, clean_person.lastName, a.street, flagged_person.firstName AS flagged_roommate, w.listName"
+  },
+  {
+    "question": "Find highly compromised corporate boards: Companies where more than one director has provided forged documents during KYC verification.",
+    "cypher": "MATCH (p:Person)-[:DIRECTS]->(c:Company), (p)-[:PROVIDED_DOC]->(d:Document {isForged: true}) WITH c, COUNT(DISTINCT p) AS bad_directors WHERE bad_directors >= 2 RETURN c.name, bad_directors"
+  },
+  {
+    "question": "Find dormant account bust-outs: Accounts that were opened more than a year ago, had zero activity, and suddenly received a massive transaction over $50,000.",
+    "cypher": "MATCH (a:Account)<-[:RECEIVED_TX]-(t:Transaction) WHERE a.openedDate < date(t.timestamp) - interval('1 year') AND t.amount > 50000 RETURN a.accountId, a.openedDate, t.amount, t.timestamp"
+  }
+]
