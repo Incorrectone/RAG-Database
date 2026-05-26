@@ -89,6 +89,7 @@ schema_queries = [
         ipAddress STRING,
         macAddress STRING,
         isp STRING,
+        registeredCountry STRING,
         PRIMARY KEY (deviceId)
     )
     """,
