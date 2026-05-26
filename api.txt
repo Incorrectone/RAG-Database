@@ -1,0 +1,2 @@
+Temporary command:
+$env:GOOGLE_API_KEY="<api_token>"
